@@ -5,9 +5,9 @@
 #ifndef _MAILBOXLIB_H_
 #define _MAILBOXLIB_H_
 
-#include <stdlib.h>
-#include <stdio.h>
 #include <lib.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #define MAX_MESSAGE_COUNT 16
@@ -22,9 +22,9 @@
  */
 
 typedef struct pid_node {
-    struct pid_node *prev;
-    int pid;
-    struct pid_node *next;
+  struct pid_node *prev;
+  int pid;
+  struct pid_node *next;
 } pid_node_t;
 
 /* Message LinkedList
@@ -35,10 +35,10 @@ typedef struct pid_node {
  */
 
 typedef struct message_struct {
-    pid_node_t *recipients;
-    char *message;
-    struct message_struct *prev;
-    struct message_struct *next;
+  pid_node_t *recipients;
+  char *message;
+  struct message_struct *prev;
+  struct message_struct *next;
 } message_t;
 
 /* Mailbox
@@ -54,54 +54,69 @@ typedef struct {
 int create_mailbox();
 int init_msg_pid_list(message_t *m);
 
-int send_message(char *messageData, size_t messageLen, int *recipients, int recipientsLen)
-{
-	message m;
-	int i;
-	//char recipientsString[128];  // 6 [5 from pid + 1 from separator] * 16, will be always lower than 128
-	char *recipientsString;
+/**
+ * @brief Send a message to one or more recipient processes.
+ *
+ * @param messageData   Buffer containing the message text.
+ * @param messageLen    Length of the message buffer.
+ * @param recipients    Array of recipient PIDs.
+ * @param recipientsLen Number of recipient PIDs.
+ *
+ * @return Result of the PM_DEPOSIT system call.
+ */
+int send_message(char *messageData, size_t messageLen, int *recipients,
+                 int recipientsLen) {
+  message m;
+  int i;
+  // char recipientsString[128];  // 6 [5 from pid + 1 from separator] * 16,
+  // will be always lower than 128
+  char *recipientsString;
 
-	recipientsString = (char *) malloc(6);
-	int written = snprintf(recipientsString, 6, "%d ", *recipients);
+  recipientsString = (char *)malloc(6);
+  int written = snprintf(recipientsString, 6, "%d ", *recipients);
 
-	int recipientsStringLen = 6;
-	for (i = 1; i < recipientsLen; i ++)
-	{
-		recipientsString = (char *) realloc (recipientsString, 6 * (i+1));
-		written = snprintf(recipientsString + (written*i), 6, "%d ", *(recipients+i));
-		recipientsStringLen += 6;
-	}
-	//snprintf(recipientsString, 128, "%d", recipients[recipientsLen-1]);
+  int recipientsStringLen = 6;
+  for (i = 1; i < recipientsLen; i++) {
+    recipientsString = (char *)realloc(recipientsString, 6 * (i + 1));
+    written =
+        snprintf(recipientsString + (written * i), 6, "%d ", *(recipients + i));
+    recipientsStringLen += 6;
+  }
+  // snprintf(recipientsString, 128, "%d", recipients[recipientsLen-1]);
 
-	//printf("User: Mapping message %s to pids %s\n", messageData, recipientsString);
+  // printf("User: Mapping message %s to pids %s\n", messageData,
+  // recipientsString);
 
-	m.m1_p1 = messageData;
-	m.m1_p2 = recipientsString;
-	m.m1_i1 = (int) messageLen + 1;
-	m.m1_i2 = recipientsStringLen + 1;
+  m.m1_p1 = messageData;
+  m.m1_p2 = recipientsString;
+  m.m1_i1 = (int)messageLen + 1;
+  m.m1_i2 = recipientsStringLen + 1;
 
-	return(_syscall(PM_PROC_NR, PM_DEPOSIT, &m));
+  return (_syscall(PM_PROC_NR, PM_DEPOSIT, &m));
 }
 
+/**
+ * @brief Receive a message for a specific process.
+ *
+ * @param destBuffer Buffer where the received message will be stored.
+ * @param bufferSize Size of @a destBuffer.
+ * @param recipient  PID of the receiving process.
+ *
+ * @return Status returned by the PM_RETRIEVE system call.
+ */
+int receive_message(char *destBuffer, size_t bufferSize, int recipient) {
+  message m;
+  m.m1_p1 = destBuffer;
+  m.m1_i1 = recipient;
+  m.m1_i2 = (int)bufferSize;
+  int status = _syscall(PM_PROC_NR, PM_RETRIEVE, &m);
+  if (status == ERROR) {
+    printf("ERROR: There is no message for the process\n");
+  } else {
+    printf("+User: message (%d bytes) \"%s\" received\n", m.m1_i2, destBuffer);
+  }
 
-
-int receive_message(char *destBuffer, size_t bufferSize ,int recipient)
-{
-    message m;
-	m.m1_p1 = destBuffer;
-	m.m1_i1 = recipient;
-	m.m1_i2 = (int) bufferSize;
-	int status = _syscall(PM_PROC_NR, PM_RETRIEVE, &m);
-	if (status == ERROR)
-	{
-		printf("ERROR: There is no message for the process\n");
-	}
-	else
-	{
-		printf("+User: message (%d bytes) \"%s\" received\n", m.m1_i2, destBuffer);
-	}
-
-	return status;
+  return status;
 }
 
 #endif
