@@ -1,0 +1,4 @@
+docs/build/
+docs/sphinx/_build/
+__pycache__/
+docs/sphinx/make.bat
